@@ -1,54 +1,151 @@
-SIGNATURE = b"FILEFUSION_START"
+import io
+import json
+import zipfile
+
+from engine.crypto import decrypt_data
+from engine.compressor import decompress_data
 
 
-def extract_file(file_path, output_path):
+
+SIGNATURE=b"FILEFUSION_V6"
+
+
+
+def extract_file(
+        file,
+        folder,
+        password,
+        progress=None
+):
+
+
+    if progress:
+        progress(10)
+
+
 
     with open(
-        file_path,
+        file,
         "rb"
     ) as f:
 
-        data = f.read()
+        data=f.read()
 
 
-    position = data.find(
+
+    index=data.find(
         SIGNATURE
     )
 
 
-    if position == -1:
+
+    if index==-1:
+
         raise Exception(
-            "No hidden file found"
-        )
+            "Not a FileFusion file")
 
 
-    start = (
-        position +
-        len(SIGNATURE)
+
+    if progress:
+        progress(30)
+
+
+
+    start=index+len(
+        SIGNATURE
     )
 
 
-    size = int.from_bytes(
-        data[start:start+8],
+
+    salt=data[
+        start:
+        start+16
+    ]
+
+
+
+    size_start=start+16
+
+
+
+    size=int.from_bytes(
+
+        data[
+            size_start:
+            size_start+8
+        ],
+
         "big"
     )
 
 
-    zip_start = start + 8
 
+    encrypted=data[
 
-    hidden = data[
-        zip_start:
-        zip_start + size
+        size_start+8:
+        size_start+8+size
+
     ]
 
 
-    with open(
-        output_path,
-        "wb"
-    ) as out:
 
-        out.write(hidden)
+    if progress:
+        progress(55)
 
 
-    return output_path
+
+    decrypted=decrypt_data(
+
+        encrypted,
+        password,
+        salt
+
+    )
+
+
+
+    original=decompress_data(
+        decrypted
+    )
+
+
+
+    zip_data=zipfile.ZipFile(
+
+        io.BytesIO(
+            original
+        )
+
+    )
+
+
+
+    metadata=json.loads(
+
+        zip_data.read(
+
+            "filefusion_metadata.json"
+
+        )
+
+    )
+
+
+
+    print(
+        metadata
+    )
+
+
+
+    zip_data.extractall(
+        folder
+    )
+
+
+
+    if progress:
+        progress(100)
+
+
+    return metadata
